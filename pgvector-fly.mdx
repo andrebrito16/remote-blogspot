@@ -14,7 +14,7 @@ In this article, I'll show you step by step how to migrate an existing Fly.io Po
 
 To install pgvector on Fly.io, you need to modify the existing `flyio/postgres-flex` Docker image. I've created a new Dockerfile using `postgres-flex` as the base but with pgvector installed.
 
-```dockerfile
+```shell
 FROM flyio/postgres-flex:16.4
 
 RUN apt-get update && \

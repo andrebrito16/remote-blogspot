@@ -1,0 +1,57 @@
+---
+title: "How to Add pgvector Support on Fly.io Postgres"
+author: "Andre Brito"
+date: "2024-10-31"
+image: "https://github.com/user-attachments/assets/ba54fb16-ab4e-4d01-8d62-55ed0badc67f"
+tags: ["pgvector", "Fly.io", "PostgreSQL", "Docker"]
+---
+
+pgvector is an open-source extension for PostgreSQL that adds support for vector similarity search. Unfortunately, [Fly.io](https://fly.io) does not support pgvector by default.
+
+In this article, I'll show you step by step how to migrate an existing Fly.io PostgreSQL database to use pgvector.
+
+# Use a Custom Docker Image
+
+To install pgvector on Fly.io, you need to modify the existing `flyio/postgres-flex` Docker image. I've created a new Dockerfile using `postgres-flex` as the base but with pgvector installed.
+
+```dockerfile
+FROM flyio/postgres-flex:16.4
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        build-essential
+
+RUN apt-get install -y --no-install-recommends postgresql-server-dev-16
+
+WORKDIR /home
+
+RUN git clone --branch v0.7.4 https://github.com/pgvector/pgvector.git
+WORKDIR /home/pgvector
+RUN make
+RUN make install
+
+docker build -t andrebrito16/pgvector-fly . --platform "linux/amd64"
+```
+
+You’ll need to upload this Docker image to an existing container registry, but I’ve already done this, and the image is available at [andrebrito16/pgvector-fly](https://hub.docker.com/repository/docker/andrebrito16/pgvector-fly/general).
+
+# Migrate an Existing Database Without Losing Data
+
+If you’re already using a PostgreSQL database on Fly.io, you can migrate without data loss. First, identify the latest snapshot volume.
+Go to your application on the dashboard, find the database, select volumes, choose the volume, and scroll down until you find the volume snapshots. Copy the volume ID; it should be something like vs_XXXXXXXXXXXX.
+Now run the following command to create a new PostgreSQL database using the custom Docker image and the previous volume. Remember to replace vs_xxxxxxxxxxx with the volume ID you copied before. Also, change the name as needed.
+
+```bash
+fly postgres create \
+  --snapshot-id vs_xxxxxxxxxxx \
+  --volume-size 1 \
+  --image-ref andrebrito16/pgvector-fly \
+  --name postgres-with-pg-vector
+```
+
+This command will output the credentials of the new database, save it on a safe place. Now you just need to add the environment variables to your application.
+
+# Conclusion
+
+pgvector is an amazing and very useful extension, and as you can see, it’s easy to deploy it on Fly.io. If you want to build a custom image with more extensions, just modify the Dockerfile to fit your requirements.
